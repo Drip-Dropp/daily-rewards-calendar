@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daily Gambling Rewards Calendar</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Daily Rewards Calendar</h1>
+    <div class="nav">
+      <button id="prevMonth" aria-label="Previous month">&laquo;</button>
+      <span id="monthLabel" class="month-label"></span>
+      <button id="nextMonth" aria-label="Next month">&raquo;</button>
+      <button id="todayBtn" class="today-btn">Today</button>
+    </div>
+    <div class="summary">
+      <span>Month total: <strong id="monthTotal">$0.00</strong></span>
+      <span>All-time: <strong id="grandTotal">$0.00</strong></span>
+    </div>
+  </header>
+
+  <main>
+    <div class="weekdays">
+      <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div>
+      <div>Thu</div><div>Fri</div><div>Sat</div>
+    </div>
+    <div id="calendar" class="calendar"></div>
+  </main>
+
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <header>
+        <h2 id="modalTitle">Edit rewards</h2>
+        <button id="closeModal" class="close" aria-label="Close">&times;</button>
+      </header>
+      <form id="rewardForm">
+        <div id="siteFields"></div>
+        <div class="add-site-row">
+          <input type="text" id="newSiteName" placeholder="Add another site (e.g. csgoroll.com)" />
+          <button type="button" id="addSiteBtn">Add site</button>
+        </div>
+        <div class="note-row">
+          <label for="noteField">Notes</label>
+          <textarea id="noteField" rows="2" placeholder="Optional notes (e.g. box contents)"></textarea>
+        </div>
+        <footer class="modal-actions">
+          <button type="button" id="deleteDay" class="danger">Clear day</button>
+          <button type="submit" class="primary">Save</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <button id="exportBtn">Export JSON</button>
+    <button id="importBtn">Import JSON</button>
+    <input type="file" id="importFile" accept="application/json" hidden />
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
