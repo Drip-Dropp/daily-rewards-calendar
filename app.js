@@ -5,6 +5,12 @@
 const STORAGE_KEY = "rewards-calendar:v1";
 const DEFAULT_SITES = ["pullbox.gg", "hellcase.com"];
 
+// Dollar value at which a day cell is considered "high" (fully red).
+// Zero maps to blue, HIGH_THRESHOLD and above map to red, linearly in between.
+const HIGH_THRESHOLD = 2;
+const COLOR_LOW = [46, 92, 180];   // blue
+const COLOR_HIGH = [200, 60, 60];  // red
+
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -53,6 +59,14 @@ function fmtMoney(n) {
   return `$${(Number(n) || 0).toFixed(2)}`;
 }
 
+function scaleColor(total) {
+  const t = Math.max(0, Math.min(1, total / HIGH_THRESHOLD));
+  const r = Math.round(COLOR_LOW[0] + (COLOR_HIGH[0] - COLOR_LOW[0]) * t);
+  const g = Math.round(COLOR_LOW[1] + (COLOR_HIGH[1] - COLOR_LOW[1]) * t);
+  const b = Math.round(COLOR_LOW[2] + (COLOR_HIGH[2] - COLOR_LOW[2]) * t);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 function knownSites() {
   const set = new Set(DEFAULT_SITES);
   for (const entry of Object.values(state.data)) {
@@ -95,6 +109,11 @@ function renderCalendar() {
     if (key === today) cell.classList.add("today");
     if (key > today) cell.classList.add("future");
     cell.dataset.date = key;
+
+    if (entry) {
+      cell.style.backgroundColor = scaleColor(total);
+      cell.classList.add("colored");
+    }
 
     const header = document.createElement("div");
     header.className = "day-header";
