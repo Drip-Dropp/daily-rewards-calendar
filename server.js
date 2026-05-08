@@ -5,7 +5,8 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const db = new Database(path.join(__dirname, "rewards.db"));
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, "rewards.db");
+const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 db.exec(`
   CREATE TABLE IF NOT EXISTS rewards (
