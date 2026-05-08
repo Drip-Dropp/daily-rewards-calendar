@@ -1,8 +1,3 @@
-// Daily Gambling Rewards Calendar
-// Stores rewards per day in localStorage as:
-//   { "YYYY-MM-DD": { sites: { "pullbox.gg": 0.12, "hellcase.com": 0.03 }, note: "" } }
-
-const STORAGE_KEY = "rewards-calendar:v1";
 const DEFAULT_SITES = ["pullbox.gg", "hellcase.com"];
 
 // Dollar value at which a day cell is considered "high" (fully red).
@@ -23,20 +18,37 @@ const state = {
   editingDate: null,
 };
 
-// ---------- Storage ----------
+// ---------- Storage (API-backed) ----------
 
-function loadData() {
+async function loadData() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    state.data = raw ? JSON.parse(raw) : {};
+    const res = await fetch("/api/rewards");
+    if (!res.ok) throw new Error(res.statusText);
+    state.data = await res.json();
   } catch (e) {
     console.error("Failed to load data", e);
     state.data = {};
   }
 }
 
-function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+async function saveEntry(dateKey, entry) {
+  if (!entry || (Object.keys(entry.sites || {}).length === 0 && !entry.note)) {
+    await fetch(`/api/rewards/${dateKey}`, { method: "DELETE" });
+  } else {
+    await fetch(`/api/rewards/${dateKey}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entry),
+    });
+  }
+}
+
+async function bulkSave(data) {
+  await fetch("/api/rewards", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
 }
 
 // ---------- Helpers ----------
@@ -200,7 +212,7 @@ function closeModal() {
   state.editingDate = null;
 }
 
-function saveModal(e) {
+async function saveModal(e) {
   e.preventDefault();
   if (!state.editingDate) return;
 
@@ -213,13 +225,14 @@ function saveModal(e) {
   });
   const note = document.getElementById("noteField").value.trim();
 
-  if (Object.keys(sites).length === 0 && !note) {
-    delete state.data[state.editingDate];
+  const entry = Object.keys(sites).length === 0 && !note ? null : { sites, note };
+  if (entry) {
+    state.data[state.editingDate] = entry;
   } else {
-    state.data[state.editingDate] = { sites, note };
+    delete state.data[state.editingDate];
   }
 
-  saveData();
+  await saveEntry(state.editingDate, entry);
   closeModal();
   renderCalendar();
 }
@@ -236,11 +249,11 @@ function addSite() {
   input.value = "";
 }
 
-function deleteDay() {
+async function deleteDay() {
   if (!state.editingDate) return;
   if (!confirm(`Clear all rewards for ${state.editingDate}?`)) return;
   delete state.data[state.editingDate];
-  saveData();
+  await saveEntry(state.editingDate, null);
   closeModal();
   renderCalendar();
 }
@@ -261,13 +274,13 @@ function exportJson() {
 
 function importJson(file) {
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
       const parsed = JSON.parse(reader.result);
       if (typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("bad format");
       if (!confirm("Replace all existing data with imported JSON?")) return;
       state.data = parsed;
-      saveData();
+      await bulkSave(parsed);
       renderCalendar();
     } catch (e) {
       alert("Could not import: " + e.message);
@@ -295,8 +308,8 @@ function goToday() {
   renderCalendar();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  loadData();
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadData();
   goToday();
 
   document.getElementById("prevMonth").addEventListener("click", () => shiftMonth(-1));
