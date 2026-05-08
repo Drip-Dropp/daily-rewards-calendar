@@ -1,2 +1,4 @@
 node_modules/
 rewards.db
+rewards.db-shm
+rewards.db-wal
