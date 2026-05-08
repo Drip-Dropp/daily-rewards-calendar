@@ -1,21 +1,28 @@
 const DEFAULT_SITES = ["pullbox.gg", "hellcase.com"];
 
-// Dollar value at which a day cell is considered "high" (fully red).
-// Zero maps to blue, HIGH_THRESHOLD and above map to red, linearly in between.
 const HIGH_THRESHOLD = 2;
-const COLOR_LOW = [46, 92, 180];   // blue
-const COLOR_HIGH = [200, 60, 60];  // red
+const COLOR_LOW = [46, 92, 180];
+const COLOR_HIGH = [200, 60, 60];
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+const DEFAULT_TIMERS = [
+  { name: "pullbox.gg", cycle: "daily", resetTime: "00:00", resetDay: 0 },
+  { name: "hellcase.com", cycle: "daily", resetTime: "00:00", resetDay: 0 },
+  { name: "CS2 Weekly Drop", cycle: "weekly", resetTime: "00:00", resetDay: 3 },
+];
+
 const state = {
   viewYear: null,
-  viewMonth: null, // 0-11
+  viewMonth: null,
   data: {},
   editingDate: null,
+  timers: [],
 };
 
 // ---------- Storage (API-backed) ----------
@@ -49,6 +56,23 @@ async function bulkSave(data) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
+}
+
+// ---------- Timer Storage (localStorage for timer config) ----------
+
+function loadTimers() {
+  try {
+    const saved = localStorage.getItem("reward-timers");
+    if (saved) {
+      state.timers = JSON.parse(saved);
+      return;
+    }
+  } catch {}
+  state.timers = JSON.parse(JSON.stringify(DEFAULT_TIMERS));
+}
+
+function saveTimers() {
+  localStorage.setItem("reward-timers", JSON.stringify(state.timers));
 }
 
 // ---------- Helpers ----------
@@ -89,7 +113,188 @@ function knownSites() {
   return Array.from(set);
 }
 
-// ---------- Render ----------
+// ---------- Timer Logic ----------
+
+function getNextReset(timer) {
+  const now = new Date();
+  const [hours, minutes] = timer.resetTime.split(":").map(Number);
+
+  if (timer.cycle === "daily") {
+    const reset = new Date(now);
+    reset.setUTCHours(hours, minutes, 0, 0);
+    if (reset <= now) reset.setUTCDate(reset.getUTCDate() + 1);
+    return reset;
+  }
+
+  // weekly: resetDay is 0=Sun .. 6=Sat
+  const reset = new Date(now);
+  reset.setUTCHours(hours, minutes, 0, 0);
+  const currentDay = reset.getUTCDay();
+  let daysUntil = (timer.resetDay - currentDay + 7) % 7;
+  if (daysUntil === 0 && reset <= now) daysUntil = 7;
+  reset.setUTCDate(reset.getUTCDate() + daysUntil);
+  return reset;
+}
+
+function formatCountdown(ms) {
+  if (ms <= 0) return "Ready!";
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  if (h >= 24) {
+    const d = Math.floor(h / 24);
+    const rh = h % 24;
+    return `${d}d ${pad(rh)}:${pad(m)}:${pad(s)}`;
+  }
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
+function renderTimers() {
+  const container = document.getElementById("timerCards");
+  container.innerHTML = "";
+
+  if (state.timers.length === 0) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;">No timers configured. Click Edit to add some.</div>';
+    return;
+  }
+
+  const now = Date.now();
+
+  for (const timer of state.timers) {
+    const nextReset = getNextReset(timer);
+    const remaining = nextReset.getTime() - now;
+    const isReady = remaining <= 0;
+
+    const card = document.createElement("div");
+    card.className = "timer-card" + (isReady ? " ready" : "");
+
+    const nameEl = document.createElement("div");
+    nameEl.className = "timer-name";
+    const dot = document.createElement("span");
+    dot.className = "timer-dot";
+    nameEl.appendChild(dot);
+    nameEl.appendChild(document.createTextNode(timer.name));
+    card.appendChild(nameEl);
+
+    const countdownEl = document.createElement("div");
+    countdownEl.className = "timer-countdown";
+    countdownEl.textContent = formatCountdown(remaining);
+    card.appendChild(countdownEl);
+
+    const labelEl = document.createElement("div");
+    labelEl.className = "timer-label";
+    labelEl.textContent = timer.cycle === "weekly"
+      ? `Resets ${DAY_NAMES[timer.resetDay]} at ${timer.resetTime} UTC`
+      : `Resets daily at ${timer.resetTime} UTC`;
+    card.appendChild(labelEl);
+
+    container.appendChild(card);
+  }
+}
+
+// ---------- Timer Modal ----------
+
+function openTimerModal() {
+  const container = document.getElementById("timerFields");
+  container.innerHTML = "";
+
+  for (const timer of state.timers) {
+    container.appendChild(buildTimerRow(timer));
+  }
+
+  document.getElementById("newTimerName").value = "";
+  document.getElementById("timerModal").classList.remove("hidden");
+}
+
+function closeTimerModal() {
+  document.getElementById("timerModal").classList.add("hidden");
+}
+
+function buildTimerRow(timer) {
+  const row = document.createElement("div");
+  row.className = "timer-row";
+
+  const label = document.createElement("label");
+  label.textContent = timer.name;
+
+  const cycleSelect = document.createElement("select");
+  cycleSelect.dataset.field = "cycle";
+  for (const opt of ["daily", "weekly"]) {
+    const o = document.createElement("option");
+    o.value = opt;
+    o.textContent = opt;
+    if (timer.cycle === opt) o.selected = true;
+    cycleSelect.appendChild(o);
+  }
+
+  cycleSelect.addEventListener("change", () => {
+    const daySelect = row.querySelector("[data-field='resetDay']");
+    if (daySelect) daySelect.style.display = cycleSelect.value === "weekly" ? "" : "none";
+  });
+
+  const timeInput = document.createElement("input");
+  timeInput.type = "time";
+  timeInput.dataset.field = "resetTime";
+  timeInput.value = timer.resetTime;
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "remove-site";
+  remove.textContent = "×";
+  remove.addEventListener("click", () => row.remove());
+
+  row.append(label, cycleSelect, timeInput, remove);
+
+  const daySelect = document.createElement("select");
+  daySelect.dataset.field = "resetDay";
+  daySelect.style.display = timer.cycle === "weekly" ? "" : "none";
+  daySelect.style.gridColumn = "2 / 4";
+  for (let i = 0; i < 7; i++) {
+    const o = document.createElement("option");
+    o.value = i;
+    o.textContent = DAY_NAMES[i];
+    if (timer.resetDay === i) o.selected = true;
+    daySelect.appendChild(o);
+  }
+  row.appendChild(daySelect);
+
+  row.dataset.name = timer.name;
+  return row;
+}
+
+function addTimer() {
+  const input = document.getElementById("newTimerName");
+  const name = input.value.trim();
+  if (!name) return;
+
+  const existing = document.querySelector(`#timerFields .timer-row[data-name="${name}"]`);
+  if (existing) { input.value = ""; return; }
+
+  const timer = { name, cycle: "daily", resetTime: "00:00", resetDay: 0 };
+  document.getElementById("timerFields").appendChild(buildTimerRow(timer));
+  input.value = "";
+}
+
+function saveTimerModal(e) {
+  e.preventDefault();
+  const timers = [];
+  document.querySelectorAll("#timerFields .timer-row").forEach(row => {
+    const name = row.dataset.name;
+    const cycle = row.querySelector("[data-field='cycle']").value;
+    const resetTime = row.querySelector("[data-field='resetTime']").value || "00:00";
+    const dayEl = row.querySelector("[data-field='resetDay']");
+    const resetDay = dayEl ? parseInt(dayEl.value) : 0;
+    timers.push({ name, cycle, resetTime, resetDay });
+  });
+  state.timers = timers;
+  saveTimers();
+  closeTimerModal();
+  renderTimers();
+}
+
+// ---------- Render Calendar ----------
 
 function renderCalendar() {
   const { viewYear, viewMonth } = state;
@@ -241,7 +446,7 @@ function addSite() {
   const input = document.getElementById("newSiteName");
   const name = input.value.trim().toLowerCase();
   if (!name) return;
-  if (document.querySelector(`#siteFields .site-row[data-site="${name}"]`)) {
+  if (document.querySelector(`#siteFields .site-row[data-site="${CSS.escape(name)}"]`)) {
     input.value = "";
     return;
   }
@@ -310,7 +515,11 @@ function goToday() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   await loadData();
+  loadTimers();
   goToday();
+  renderTimers();
+
+  setInterval(renderTimers, 1000);
 
   document.getElementById("prevMonth").addEventListener("click", () => shiftMonth(-1));
   document.getElementById("nextMonth").addEventListener("click", () => shiftMonth(1));
@@ -324,6 +533,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("addSiteBtn").addEventListener("click", addSite);
   document.getElementById("deleteDay").addEventListener("click", deleteDay);
 
+  document.getElementById("editTimersBtn").addEventListener("click", openTimerModal);
+  document.getElementById("closeTimerModal").addEventListener("click", closeTimerModal);
+  document.getElementById("timerModal").addEventListener("click", (e) => {
+    if (e.target.id === "timerModal") closeTimerModal();
+  });
+  document.getElementById("timerForm").addEventListener("submit", saveTimerModal);
+  document.getElementById("addTimerBtn").addEventListener("click", addTimer);
+
   document.getElementById("exportBtn").addEventListener("click", exportJson);
   document.getElementById("importBtn").addEventListener("click", () =>
     document.getElementById("importFile").click()
@@ -335,8 +552,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeModal();
-    if (document.getElementById("modal").classList.contains("hidden")) {
+    if (e.key === "Escape") {
+      if (!document.getElementById("timerModal").classList.contains("hidden")) {
+        closeTimerModal();
+      } else {
+        closeModal();
+      }
+    }
+    const anyModalOpen = !document.getElementById("modal").classList.contains("hidden")
+      || !document.getElementById("timerModal").classList.contains("hidden");
+    if (!anyModalOpen) {
       if (e.key === "ArrowLeft") shiftMonth(-1);
       if (e.key === "ArrowRight") shiftMonth(1);
     }

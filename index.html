@@ -8,18 +8,28 @@
 </head>
 <body>
   <header class="topbar">
-    <h1>Daily Rewards Calendar</h1>
+    <div class="topbar-left">
+      <h1>Daily Rewards Calendar</h1>
+      <div class="summary">
+        <span class="stat">Month <strong id="monthTotal">$0.00</strong></span>
+        <span class="stat">All-time <strong id="grandTotal">$0.00</strong></span>
+      </div>
+    </div>
     <div class="nav">
       <button id="prevMonth" aria-label="Previous month">&laquo;</button>
       <span id="monthLabel" class="month-label"></span>
       <button id="nextMonth" aria-label="Next month">&raquo;</button>
       <button id="todayBtn" class="today-btn">Today</button>
     </div>
-    <div class="summary">
-      <span>Month total: <strong id="monthTotal">$0.00</strong></span>
-      <span>All-time: <strong id="grandTotal">$0.00</strong></span>
-    </div>
   </header>
+
+  <section id="timerDashboard" class="timer-dashboard">
+    <div class="timer-header">
+      <h2>Reset Timers</h2>
+      <button id="editTimersBtn" class="timer-edit-btn" title="Edit timers">Edit</button>
+    </div>
+    <div id="timerCards" class="timer-cards"></div>
+  </section>
 
   <main>
     <div class="weekdays">
@@ -47,6 +57,25 @@
         </div>
         <footer class="modal-actions">
           <button type="button" id="deleteDay" class="danger">Clear day</button>
+          <button type="submit" class="primary">Save</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
+  <div id="timerModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-content">
+      <header>
+        <h2>Edit Reset Timers</h2>
+        <button id="closeTimerModal" class="close" aria-label="Close">&times;</button>
+      </header>
+      <form id="timerForm">
+        <div id="timerFields"></div>
+        <div class="add-site-row">
+          <input type="text" id="newTimerName" placeholder="Timer name (e.g. csgoroll.com)" />
+          <button type="button" id="addTimerBtn">Add timer</button>
+        </div>
+        <footer class="modal-actions">
           <button type="submit" class="primary">Save</button>
         </footer>
       </form>
