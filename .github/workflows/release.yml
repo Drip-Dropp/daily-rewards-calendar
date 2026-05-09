@@ -1,6 +1,9 @@
 name: Build and push container image
 
 on:
+  push:
+    tags:
+      - 'v*'
   release:
     types: [published]
   workflow_dispatch:
