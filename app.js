@@ -17,45 +17,87 @@ const DEFAULT_TIMERS = [
   { name: "CS2 Weekly Drop", cycle: "weekly", resetTime: "00:00", resetDay: 3 },
 ];
 
+const STORAGE_KEY = "daily-rewards-data";
+
 const state = {
   viewYear: null,
   viewMonth: null,
   data: {},
   editingDate: null,
   timers: [],
+  serverAvailable: false,
 };
 
-// ---------- Storage (API-backed) ----------
+// ---------- Storage (API with localStorage fallback) ----------
+
+async function detectServer() {
+  try {
+    const res = await fetch("/api/rewards", { method: "HEAD" });
+    state.serverAvailable = res.ok;
+  } catch {
+    state.serverAvailable = false;
+  }
+}
+
+function loadLocal() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+  } catch { return {}; }
+}
+
+function saveLocal() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+}
 
 async function loadData() {
-  try {
-    const res = await fetch("/api/rewards");
-    if (!res.ok) throw new Error(res.statusText);
-    state.data = await res.json();
-  } catch (e) {
-    console.error("Failed to load data", e);
-    state.data = {};
+  await detectServer();
+  if (state.serverAvailable) {
+    try {
+      const res = await fetch("/api/rewards");
+      if (!res.ok) throw new Error(res.statusText);
+      state.data = await res.json();
+      return;
+    } catch (e) {
+      console.error("Failed to load from server, falling back to localStorage", e);
+    }
   }
+  state.data = loadLocal();
 }
 
 async function saveEntry(dateKey, entry) {
-  if (!entry || (Object.keys(entry.sites || {}).length === 0 && !entry.note)) {
-    await fetch(`/api/rewards/${dateKey}`, { method: "DELETE" });
-  } else {
-    await fetch(`/api/rewards/${dateKey}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(entry),
-    });
+  if (state.serverAvailable) {
+    try {
+      if (!entry || (Object.keys(entry.sites || {}).length === 0 && !entry.note)) {
+        await fetch(`/api/rewards/${dateKey}`, { method: "DELETE" });
+      } else {
+        await fetch(`/api/rewards/${dateKey}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(entry),
+        });
+      }
+      return;
+    } catch (e) {
+      console.error("Server save failed, saving locally", e);
+    }
   }
+  saveLocal();
 }
 
 async function bulkSave(data) {
-  await fetch("/api/rewards", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
+  if (state.serverAvailable) {
+    try {
+      await fetch("/api/rewards", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      return;
+    } catch (e) {
+      console.error("Server bulk save failed, saving locally", e);
+    }
+  }
+  saveLocal();
 }
 
 // ---------- Timer Storage (localStorage for timer config) ----------
