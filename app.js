@@ -369,10 +369,12 @@ function renderCalendar() {
     if (key > today) cell.classList.add("future");
     cell.dataset.date = key;
 
+    const hasGold = entry && entry.goldWins && Object.values(entry.goldWins).some(Boolean);
     if (entry) {
       cell.style.backgroundColor = scaleColor(total);
       cell.classList.add("colored");
     }
+    if (hasGold) cell.classList.add("gold");
 
     const header = document.createElement("div");
     header.className = "day-header";
@@ -380,6 +382,12 @@ function renderCalendar() {
     num.className = "day-number";
     num.textContent = d;
     header.appendChild(num);
+    if (hasGold) {
+      const star = document.createElement("span");
+      star.className = "gold-star";
+      star.textContent = "★";
+      header.appendChild(star);
+    }
     cell.appendChild(header);
 
     if (entry && entry.sites) {
@@ -419,7 +427,7 @@ function openModal(key) {
 
   const sites = new Set([...knownSites(), ...Object.keys(entry.sites || {})]);
   for (const site of sites) {
-    container.appendChild(buildSiteRow(site, entry.sites?.[site] ?? ""));
+    container.appendChild(buildSiteRow(site, entry.sites?.[site] ?? "", entry.goldWins?.[site]));
   }
 
   document.getElementById("noteField").value = entry.note || "";
@@ -427,7 +435,7 @@ function openModal(key) {
   document.getElementById("modal").classList.remove("hidden");
 }
 
-function buildSiteRow(site, value) {
+function buildSiteRow(site, value, isGold) {
   const row = document.createElement("div");
   row.className = "site-row";
   row.dataset.site = site;
@@ -443,6 +451,13 @@ function buildSiteRow(site, value) {
   input.value = value === 0 ? "" : (value ?? "");
   input.dataset.site = site;
 
+  const gold = document.createElement("input");
+  gold.type = "checkbox";
+  gold.className = "gold-toggle";
+  gold.title = "Won a gold";
+  gold.checked = !!isGold;
+  gold.dataset.site = site;
+
   const remove = document.createElement("button");
   remove.type = "button";
   remove.className = "remove-site";
@@ -450,7 +465,7 @@ function buildSiteRow(site, value) {
   remove.title = "Remove row";
   remove.addEventListener("click", () => row.remove());
 
-  row.append(label, input, remove);
+  row.append(label, input, gold, remove);
   return row;
 }
 
@@ -464,15 +479,19 @@ async function saveModal(e) {
   if (!state.editingDate) return;
 
   const sites = {};
+  const goldWins = {};
   document.querySelectorAll("#siteFields .site-row").forEach(row => {
     const site = row.dataset.site;
     const input = row.querySelector("input[type=number]");
     const v = parseFloat(input.value);
     if (!isNaN(v) && v > 0) sites[site] = v;
+    const goldCheck = row.querySelector(".gold-toggle");
+    if (goldCheck && goldCheck.checked) goldWins[site] = true;
   });
   const note = document.getElementById("noteField").value.trim();
+  const hasGold = Object.keys(goldWins).length > 0;
 
-  const entry = Object.keys(sites).length === 0 && !note ? null : { sites, note };
+  const entry = Object.keys(sites).length === 0 && !note && !hasGold ? null : { sites, note, ...(hasGold ? { goldWins } : {}) };
   if (entry) {
     state.data[state.editingDate] = entry;
   } else {
@@ -492,7 +511,7 @@ function addSite() {
     input.value = "";
     return;
   }
-  document.getElementById("siteFields").appendChild(buildSiteRow(name, ""));
+  document.getElementById("siteFields").appendChild(buildSiteRow(name, "", false));
   input.value = "";
 }
 
