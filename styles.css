@@ -17,6 +17,7 @@
   --purple: #a78bfa;
   --radius: 10px;
   --radius-sm: 6px;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -109,6 +110,12 @@ button.primary:hover { background: #55b4ff; border-color: #55b4ff; }
 button.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
 button.danger:hover { background: rgba(248, 113, 113, 0.1); }
 button.today-btn { margin-left: 0.25rem; }
+button:disabled { opacity: 0.6; cursor: wait; }
+button:focus-visible,
+.day:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* ---- Timer Dashboard ---- */
 
@@ -147,6 +154,8 @@ button.today-btn { margin-left: 0.25rem; }
   flex-wrap: wrap;
 }
 
+.timer-empty { color: var(--muted); font-size: 0.82rem; }
+
 .timer-card {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -168,7 +177,17 @@ button.today-btn { margin-left: 0.25rem; }
   box-shadow: 0 0 12px var(--accent-2-dim);
 }
 
+.timer-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.5rem;
+}
+
 .timer-card .timer-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 0.78rem;
   color: var(--muted);
   font-weight: 500;
@@ -207,6 +226,21 @@ button.today-btn { margin-left: 0.25rem; }
   color: var(--muted);
 }
 
+.timer-claim {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  color: var(--muted);
+  background: transparent;
+}
+.timer-card.ready .timer-claim {
+  color: var(--accent-2);
+  border-color: var(--accent-2);
+}
+.timer-card.ready .timer-claim:hover { background: var(--accent-2-dim); }
+.timer-card.claimed { opacity: 0.7; }
+.timer-card.claimed:hover { opacity: 1; }
+
 /* ---- Calendar ---- */
 
 main { padding: 1rem 1.5rem; }
@@ -234,6 +268,10 @@ main { padding: 1rem 1.5rem; }
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  min-width: 0;
   min-height: 92px;
   padding: 0.45rem 0.5rem;
   display: flex;
@@ -281,6 +319,7 @@ main { padding: 1rem 1.5rem; }
   color: var(--muted);
 }
 .day-number { font-weight: 700; color: var(--text); font-size: 0.82rem; }
+.note-mark { font-size: 0.75rem; opacity: 0.8; }
 .day-total {
   margin-top: auto;
   font-weight: 700;
@@ -416,11 +455,24 @@ main { padding: 1rem 1.5rem; }
 }
 .note-row textarea:focus { outline: none; border-color: var(--accent); }
 
+.modal-hint { margin: 0 0 0.75rem; color: var(--muted); font-size: 0.8rem; }
+
+.form-error {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  background: rgba(248, 113, 113, 0.1);
+  color: var(--danger);
+  font-size: 0.85rem;
+}
+
 .modal-actions {
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
 }
+.modal-actions .primary { margin-left: auto; }
 
 /* ---- Timer modal rows ---- */
 
@@ -461,20 +513,26 @@ main { padding: 1rem 1.5rem; }
 .footer {
   padding: 1rem 1.5rem 2rem;
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
   justify-content: flex-end;
   color: var(--muted);
   font-size: 0.85rem;
 }
+.storage-status { margin-right: auto; font-size: 0.78rem; }
 
 /* ---- Responsive ---- */
 
 @media (max-width: 700px) {
   .topbar { flex-direction: column; align-items: flex-start; gap: 0.6rem; }
   .day { min-height: 68px; padding: 0.3rem; }
-  .summary { width: 100%; }
+  .summary { width: 100%; flex-wrap: wrap; gap: 0.4rem 1.25rem; }
+  main, .timer-dashboard { padding-left: 0.75rem; padding-right: 0.75rem; }
+  .calendar, .weekdays { gap: 3px; }
+  .day-total { font-size: 0.78rem; }
   .site-pill { display: none; }
-  .timer-card { min-width: 140px; }
+  .timer-card { min-width: 140px; max-width: none; }
   .timer-row { grid-template-columns: 1fr 1fr auto; }
   .timer-row select { grid-column: 1 / -2; }
 }

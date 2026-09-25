@@ -1,14 +1,15 @@
 {
   "name": "daily-rewards-calendar",
   "version": "1.0.0",
-  "description": "A tiny single-page app for tracking daily free rewards from sites like **pullbox.gg** and **hellcase.com** in a calendar view.",
+  "description": "A tiny single-page app for tracking daily free rewards (e.g. pullbox.gg, hellcase.com) in a calendar view.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   },
   "repository": {
     "type": "git",
-    "url": "http://local_proxy@127.0.0.1:63380/git/Drip-Dropp/daily-rewards-calendar"
+    "url": "https://github.com/Drip-Dropp/daily-rewards-calendar.git"
   },
   "keywords": [],
   "author": "",
@@ -16,5 +17,8 @@
   "dependencies": {
     "better-sqlite3": "^12.9.0",
     "express": "^5.2.1"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
