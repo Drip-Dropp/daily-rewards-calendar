@@ -12,6 +12,7 @@
       <h1>Daily Rewards Calendar</h1>
       <div class="summary">
         <span class="stat">Month <strong id="monthTotal">$0.00</strong></span>
+        <span class="stat">Days this month <strong id="monthDays">0</strong></span>
         <span class="stat">All-time <strong id="grandTotal">$0.00</strong></span>
       </div>
     </div>
@@ -39,7 +40,7 @@
     <div id="calendar" class="calendar"></div>
   </main>
 
-  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-content">
       <header>
         <h2 id="modalTitle">Edit rewards</h2>
@@ -55,6 +56,7 @@
           <label for="noteField">Notes</label>
           <textarea id="noteField" rows="2" placeholder="Optional notes (e.g. box contents)"></textarea>
         </div>
+        <p id="formError" class="form-error" role="alert" hidden></p>
         <footer class="modal-actions">
           <button type="button" id="deleteDay" class="danger">Clear day</button>
           <button type="submit" class="primary">Save</button>
@@ -63,13 +65,14 @@
     </div>
   </div>
 
-  <div id="timerModal" class="modal hidden" role="dialog" aria-modal="true">
+  <div id="timerModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="timerModalTitle">
     <div class="modal-content">
       <header>
-        <h2>Edit Reset Timers</h2>
+        <h2 id="timerModalTitle">Edit Reset Timers</h2>
         <button id="closeTimerModal" class="close" aria-label="Close">&times;</button>
       </header>
       <form id="timerForm">
+        <p class="modal-hint">Reset times are in UTC.</p>
         <div id="timerFields"></div>
         <div class="add-site-row">
           <input type="text" id="newTimerName" placeholder="Timer name (e.g. csgoroll.com)" />
@@ -83,6 +86,7 @@
   </div>
 
   <footer class="footer">
+    <span id="storageStatus" class="storage-status"></span>
     <button id="exportBtn">Export JSON</button>
     <button id="importBtn">Import JSON</button>
     <input type="file" id="importFile" accept="application/json" hidden />
