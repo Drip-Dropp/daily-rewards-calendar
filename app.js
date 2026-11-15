@@ -168,6 +168,54 @@ function fmtMoney(n) {
   return `$${(Number(n) || 0).toFixed(2)}`;
 }
 
+// === XP ===================================================================
+// entry.xp is the END-OF-DAY cumulative account total, not a daily gain —
+// gains are derived by differencing consecutive readings. Days without a
+// reading are simply absent from the series, so a gain spanning a gap is
+// attributed to the day the reading was taken.
+
+function xpSeries() {
+  return Object.entries(state.data)
+    .filter(([, e]) => toXp(e && e.xp) !== null)
+    .map(([k, e]) => [k, toXp(e.xp)])
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1));
+}
+
+// Gain on `key` vs the previous reading. null when there's no reading that
+// day, or no earlier reading to difference against (the first day ever).
+function xpGainOn(key, series) {
+  const i = series.findIndex(([k]) => k === key);
+  if (i <= 0) return null;
+  return series[i][1] - series[i - 1][1];
+}
+
+function latestXp(series) {
+  return series.length ? series[series.length - 1][1] : null;
+}
+
+// Gain across a month: last reading in the month minus the previous
+// month's closing reading. When nothing precedes the month (the first
+// month ever tracked) there's no close to anchor to, so fall back to the
+// month's own first reading — that under-reports by whatever was earned
+// before tracking began, but beats showing nothing.
+function xpMonthGain(series, year, month) {
+  const prefix = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const inMonth = series.filter(([k]) => k.startsWith(prefix + "-"));
+  if (!inMonth.length) return null;
+  const before = series.filter(([k]) => k < prefix + "-01");
+  const baseline = before.length ? before[before.length - 1][1] : inMonth[0][1];
+  return inMonth[inMonth.length - 1][1] - baseline;
+}
+
+function fmtXp(n) {
+  return n === null || n === undefined ? "—" : Number(n).toLocaleString();
+}
+
+function fmtXpGain(n) {
+  if (n === null || n === undefined) return "—";
+  return (n > 0 ? "+" : "") + Number(n).toLocaleString();
+}
+
 function scaleColor(total) {
   const t = Math.max(0, Math.min(1, total / HIGH_THRESHOLD));
   const r = Math.round(COLOR_LOW[0] + (COLOR_HIGH[0] - COLOR_LOW[0]) * t);
@@ -186,6 +234,15 @@ function knownSites() {
   return Array.from(set);
 }
 
+// null/undefined/""/booleans must stay "no reading" — Number(null) is 0,
+// which would silently record a real XP total of zero and wreck every
+// gain computed against it.
+function toXp(v) {
+  if (v === null || v === undefined || v === "" || typeof v === "boolean") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+}
+
 // Keeps only well-formed days: YYYY-MM-DD keys, positive numeric amounts, string notes.
 function normalizeData(raw) {
   const data = {};
@@ -200,7 +257,8 @@ function normalizeData(raw) {
       }
     }
     const note = typeof entry.note === "string" ? entry.note : "";
-    if (Object.keys(sites).length > 0 || note) data[key] = { sites, note };
+    const xp = toXp(entry.xp);
+    if (Object.keys(sites).length > 0 || note || xp !== null) data[key] = { sites, note, xp };
   }
   return data;
 }
@@ -474,6 +532,8 @@ function renderCalendar() {
     cal.appendChild(blank);
   }
 
+  const series = xpSeries();
+
   let monthSum = 0;
   let monthDays = 0;
   for (let d = 1; d <= daysInMonth; d++) {
@@ -536,12 +596,28 @@ function renderCalendar() {
     totalEl.textContent = total === 0 ? "—" : fmtMoney(total);
     cell.appendChild(totalEl);
 
+    const xpGain = xpGainOn(key, series);
+    if (xpGain !== null) {
+      const xpEl = document.createElement("div");
+      xpEl.className = "day-xp";
+      xpEl.textContent = `${fmtXpGain(xpGain)} xp`;
+      xpEl.title = `End of day: ${fmtXp(entry.xp)} xp`;
+      cell.appendChild(xpEl);
+    }
+
     cell.addEventListener("click", () => openModal(key));
     cal.appendChild(cell);
   }
 
   document.getElementById("monthTotal").textContent = fmtMoney(monthSum);
   document.getElementById("monthDays").textContent = monthDays;
+
+  const todayGain = xpGainOn(today, series);
+  const monthXp = xpMonthGain(series, viewYear, viewMonth);
+  const currentXp = latestXp(series);
+  document.getElementById("xpToday").textContent = fmtXpGain(todayGain);
+  document.getElementById("xpMonth").textContent = fmtXpGain(monthXp);
+  document.getElementById("xpTotal").textContent = fmtXp(currentXp);
 
   const grand = Object.values(state.data).reduce((s, e) => s + dayTotal(e), 0);
   document.getElementById("grandTotal").textContent = fmtMoney(grand);
@@ -661,7 +737,13 @@ async function saveModal(e) {
   });
   const note = document.getElementById("noteField").value.trim();
 
-  const entry = Object.keys(sites).length === 0 && !note ? null : { sites, note };
+  // XP is captured automatically by the claimer; editing money/notes here
+  // must not discard the day's reading.
+  const existingXp = state.data[key] ? state.data[key].xp ?? null : null;
+  const entry =
+    Object.keys(sites).length === 0 && !note && existingXp === null
+      ? null
+      : { sites, note, xp: existingXp };
   await withSaving(() => commitEntry(key, entry));
 }
 

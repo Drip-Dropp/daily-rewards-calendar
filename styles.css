@@ -536,3 +536,12 @@ main { padding: 1rem 1.5rem; }
   .timer-row { grid-template-columns: 1fr 1fr auto; }
   .timer-row select { grid-column: 1 / -2; }
 }
+
+/* XP gain shown under a day's money total. Muted so the money stays
+   the primary signal; the title attribute carries the end-of-day total. */
+.day-xp {
+  font-size: 0.7rem;
+  opacity: 0.75;
+  line-height: 1.1;
+  white-space: nowrap;
+}
