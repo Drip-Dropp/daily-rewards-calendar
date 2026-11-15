@@ -26,6 +26,11 @@ function openDb(dbPath) {
       PRIMARY KEY (ip, date)
     )
   `);
+  // xp: end-of-day pullbox XP total for that date. Added after the table
+  // shipped, so migrate in place; nullable because most historical rows
+  // predate XP tracking and "no reading" must stay distinct from 0.
+  const hasXp = db.prepare("PRAGMA table_info(rewards)").all().some((c) => c.name === "xp");
+  if (!hasXp) db.exec("ALTER TABLE rewards ADD COLUMN xp INTEGER");
   return db;
 }
 
@@ -33,7 +38,16 @@ function getIp(req) {
   return req.headers["x-forwarded-for"]?.split(",")[0].trim() || req.ip;
 }
 
-// Returns { sites, note } with only positive finite amounts and a string note,
+// null/undefined/""/booleans must stay "no reading" — Number(null) is 0,
+// which would silently record a real XP total of zero and wreck every
+// gain computed against it.
+function toXp(v) {
+  if (v === null || v === undefined || v === "" || typeof v === "boolean") return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+}
+
+// Returns { sites, note, xp } with only positive finite amounts and a string note,
 // or null if the input is not an object.
 function sanitizeEntry(entry) {
   if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
@@ -47,11 +61,11 @@ function sanitizeEntry(entry) {
     }
   }
   const note = typeof entry.note === "string" ? entry.note.trim().slice(0, MAX_NOTE) : "";
-  return { sites, note };
+  return { sites, note, xp: toXp(entry.xp) };
 }
 
 function isEmpty(entry) {
-  return Object.keys(entry.sites).length === 0 && !entry.note;
+  return Object.keys(entry.sites).length === 0 && !entry.note && entry.xp === null;
 }
 
 function createApp(db) {
@@ -63,11 +77,16 @@ function createApp(db) {
     app.get(`/${file}`, (req, res) => res.sendFile(path.join(__dirname, file)));
   }
 
-  const selectAll = db.prepare("SELECT date, sites, note FROM rewards WHERE ip = ?");
+  const selectAll = db.prepare("SELECT date, sites, note, xp FROM rewards WHERE ip = ?");
   const upsert = db.prepare(`
-    INSERT INTO rewards (ip, date, sites, note)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(ip, date) DO UPDATE SET sites = excluded.sites, note = excluded.note
+    INSERT INTO rewards (ip, date, sites, note, xp)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(ip, date) DO UPDATE SET
+      sites = excluded.sites,
+      note  = excluded.note,
+      -- Keep a previously recorded XP total if this write doesn't carry
+      -- one, so a plain sites-only PUT can't erase the day's reading.
+      xp    = COALESCE(excluded.xp, rewards.xp)
   `);
   const deleteOne = db.prepare("DELETE FROM rewards WHERE ip = ? AND date = ?");
   const deleteAll = db.prepare("DELETE FROM rewards WHERE ip = ?");
@@ -75,7 +94,7 @@ function createApp(db) {
   app.get("/api/rewards", (req, res) => {
     const data = {};
     for (const row of selectAll.all(getIp(req))) {
-      data[row.date] = { sites: JSON.parse(row.sites), note: row.note };
+      data[row.date] = { sites: JSON.parse(row.sites), note: row.note, xp: row.xp ?? null };
     }
     res.json(data);
   });
@@ -92,7 +111,7 @@ function createApp(db) {
     if (isEmpty(entry)) {
       deleteOne.run(getIp(req), date);
     } else {
-      upsert.run(getIp(req), date, JSON.stringify(entry.sites), entry.note);
+      upsert.run(getIp(req), date, JSON.stringify(entry.sites), entry.note, entry.xp);
     }
     res.json({ ok: true });
   });
@@ -118,7 +137,7 @@ function createApp(db) {
         if (!DATE_RE.test(date)) continue;
         const entry = sanitizeEntry(raw);
         if (!entry || isEmpty(entry)) continue;
-        upsert.run(ip, date, JSON.stringify(entry.sites), entry.note);
+        upsert.run(ip, date, JSON.stringify(entry.sites), entry.note, entry.xp);
       }
     })();
     res.json({ ok: true });
